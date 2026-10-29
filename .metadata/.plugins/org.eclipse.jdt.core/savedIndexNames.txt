@@ -1,0 +1,11 @@
+INDEX VERSION 1.134+/home/connollyed/Desktop/IR-ASS1/.metadata/.plugins/org.eclipse.jdt.core
+1896417269.index
+3536855858.index
+1833096159.index
+3898844043.index
+2580852043.index
+4079594791.index
+1316345738.index
+1865797976.index
+481574984.index
+2341169964.index

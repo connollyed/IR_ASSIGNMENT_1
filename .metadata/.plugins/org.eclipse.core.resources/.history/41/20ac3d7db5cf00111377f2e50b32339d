@@ -1,0 +1,1879 @@
+////package ie.tcd.dalyc24;
+////
+////import java.io.BufferedReader;
+////import java.io.BufferedWriter;
+////import java.io.FileReader;
+////import java.io.FileWriter;
+////import java.io.IOException;
+////import java.io.FileNotFoundException;
+////
+////import java.util.ArrayList;
+////import java.util.Scanner;
+////import java.nio.file.Paths;
+////import org.apache.lucene.analysis.Analyzer;
+////import org.apache.lucene.analysis.TokenStream;
+////import org.apache.lucene.analysis.standard.StandardAnalyzer;
+////import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+////import org.apache.lucene.document.Document;
+////import org.apache.lucene.document.Field;
+////import org.apache.lucene.document.TextField;
+////import org.apache.lucene.index.DirectoryReader;
+////import org.apache.lucene.index.IndexWriter;
+////import org.apache.lucene.index.IndexWriterConfig;
+////import org.apache.lucene.index.Term;
+////import org.apache.lucene.search.BooleanClause;
+////import org.apache.lucene.search.BooleanQuery;
+////import org.apache.lucene.search.BoostQuery;
+////import org.apache.lucene.search.IndexSearcher;
+////import org.apache.lucene.search.Query;
+////import org.apache.lucene.search.ScoreDoc;
+////import org.apache.lucene.search.TermQuery;
+////import org.apache.lucene.search.similarities.BM25Similarity;
+////import org.apache.lucene.search.similarities.BooleanSimilarity;
+////import org.apache.lucene.search.similarities.ClassicSimilarity;
+////import org.apache.lucene.search.similarities.DFISimilarity;
+////import org.apache.lucene.store.Directory;
+////import org.apache.lucene.store.FSDirectory;
+////
+////import org.apache.lucene.queryparser.classic.QueryParser;
+////import org.apache.lucene.queryparser.classic.ParseException;
+////
+////
+////public class IR_ASSIGNMENT
+////{
+////
+////	static Analyzer analyzer = null;
+////	
+////	// Directory where the search index will be saved
+////	private static String INDEX_DIRECTORY = "../index";
+////	
+////	private static int score; 
+////
+////	public static void main(String[] args) throws IOException, ParseException
+////	{
+////		System.out.println("Starting");
+////
+////		//reformat();
+////		
+////		System.out.println("What analyzer to use");
+////		System.out.println("1 - Custom Analyzer");
+////		System.out.println("2 - Standard Analyzer");
+////		
+////		Scanner in = new Scanner(System.in);
+////		int type = in.nextInt();
+////		
+////		if(type == 1) {
+////			analyzer = new MyCustomAnalyzer();
+////		} else {
+////			analyzer = new StandardAnalyzer();
+////		}
+////		
+////		System.out.println("What score to use");
+////		System.out.println("1 - Boolean");
+////		System.out.println("2 - TF-IDF");
+////		System.out.println("3 - BM25");
+////		score = in.nextInt();
+////		
+////		
+////		buildIndex();
+////		queryDocs();
+////		System.out.println("Finishing");
+////	}
+////
+////	public static void buildIndex() throws IOException {	
+////		// ArrayList of documents in the corpus
+////		ArrayList<Document> documents = new ArrayList<Document>();
+////
+////		// Open the directory that contains the search index
+////		Directory directory = FSDirectory.open(Paths.get(INDEX_DIRECTORY));
+////
+////		// Set up an index writer to add process and save documents to the index
+////		IndexWriterConfig config = new IndexWriterConfig(analyzer);
+////		config.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
+////		IndexWriter iwriter = new IndexWriter(directory, config);
+////
+////		String filePath = "../cran/cran.all.1400";
+////		try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
+////			String line  = null;
+////			String currentSection = null;
+////			Document_File currentDocument = null;            
+////
+////			int counter_for_id = 0;
+////			while ((line = reader.readLine()) != null) {
+////				//System.out.println(line);
+////
+////				if (line.startsWith(".I")) {
+////					counter_for_id++;
+////					if (currentDocument == null) {
+////						currentDocument = new Document_File();
+////						currentDocument.ID = line.substring(3);
+////					} else {
+////						currentDocument.print();
+////
+////						
+////						System.out.println("NEW CODE");
+////						TokenStream stream_title = analyzer.tokenStream(null, currentDocument.title);
+////						CharTermAttribute attr = stream_title.addAttribute(CharTermAttribute.class);
+////						stream_title.reset();
+////						
+////						//StringBuffer cur = new StringBuffer();
+////						String title_words = "";
+////						while(stream_title.incrementToken()) {
+////							title_words += (attr.toString()+" ");
+////						}
+////						stream_title.close();
+////						
+////						TokenStream stream_content = analyzer.tokenStream(null, currentDocument.content);
+////						attr = stream_content.addAttribute(CharTermAttribute.class);
+////						stream_content.reset();
+////						
+////						
+////						String content_words = "";
+////						while(stream_content.incrementToken()) {
+////							content_words += (attr.toString()+" ");
+////						}
+////						stream_content.close();
+////						
+////						//System.out.println(cur);
+////						//System.exit(0);
+////						// Save processed document
+////						Document doc = new Document();
+////						doc.add(new TextField("counter_for_id", String.valueOf(counter_for_id), Field.Store.YES));
+////						doc.add(new TextField("ID", currentDocument.ID, Field.Store.YES));
+////						doc.add(new TextField("title", title_words, Field.Store.YES));
+////						doc.add(new TextField("author",currentDocument.author, Field.Store.YES));
+////						doc.add(new TextField("source",currentDocument.source, Field.Store.YES));
+////						doc.add(new TextField("content",content_words, Field.Store.YES));
+////						documents.add(doc);
+////						
+////						// Create a new Document
+////						currentDocument = new Document_File();
+////						currentDocument.ID = line.substring(3);
+////					}
+////				} else if (line.startsWith(".T")) {
+////					currentSection = "title";
+////				} else if (line.startsWith(".A")) {
+////					currentSection = "author";
+////				} else if (line.startsWith(".B")) {
+////					currentSection = "source";
+////				} else if (line.startsWith(".W")) {
+////					currentSection = "content";	
+////				} else if (currentDocument != null && currentSection != null) {
+////
+////					line = line.replace("?", "\\?");
+////					switch (currentSection) {
+////					case "title":
+////						currentDocument.title += line.trim() + " ";
+////						break;
+////					case "author":
+////						currentDocument.author += line.trim() + " ";
+////						break;
+////					case "source":
+////						currentDocument.source += line.trim() + " ";
+////						break;
+////					case "content":
+////						currentDocument.content += line.trim() + " ";
+////						break;
+////					}
+////				}
+////			}
+////
+////			// Save last document, I didnt get a new ".I" to save document maybe do on EOF
+////			currentDocument.print();
+////			Document doc = new Document();
+////			doc.add(new TextField("counter_for_id", String.valueOf(counter_for_id), Field.Store.YES));
+////			doc.add(new TextField("ID", currentDocument.ID, Field.Store.YES));
+////			doc.add(new TextField("title",currentDocument.title, Field.Store.YES));
+////			doc.add(new TextField("author",currentDocument.author, Field.Store.YES));
+////			doc.add(new TextField("source",currentDocument.source, Field.Store.YES));
+////			doc.add(new TextField("content",currentDocument.content, Field.Store.YES));
+////			documents.add(doc);
+////
+////
+////		} catch (IOException e) {
+////			System.err.println("An error occurred while reading the file: " + e.getMessage());
+////			e.printStackTrace();
+////		}
+////
+////		// close everything and quit
+////		iwriter.addDocuments(documents);
+////		System.out.println("Indexed " + iwriter.numRamDocs() + " documents");
+////		iwriter.close();
+////		directory.close(); 
+////	}
+////
+////	
+////	
+////	
+////	
+////	
+////	
+////	
+////	
+////	
+////	// Limit the number of search results we get
+////	private static int MAX_RESULTS = 50; // I changed this from 10
+////	private static String results = "../results.txt";		
+////
+////	public static void queryDocs() throws IOException, ParseException{
+////
+////		String filePath = "../cran/cran.qry";
+////
+////		String line  = null;
+////		String currentSection = null;
+////		Query_File currentQuery = null;
+////
+////
+////		ArrayList<Query_File> queries = new ArrayList<Query_File>();
+////
+////		try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
+////
+////			while ((line = reader.readLine()) != null)
+////			{
+////				System.out.println(line);
+////
+////				if (line.startsWith(".I")) {
+////					if (currentQuery == null) {
+////						currentQuery = new Query_File();
+////						currentQuery.ID = line.substring(3);
+////						//documents.add(currentDocument);
+////					} else {
+////						currentQuery.print();
+////						// Add current query to queries list
+////						queries.add(currentQuery);
+////						currentQuery = new Query_File();
+////						currentQuery.ID = line.substring(3);
+////					}
+////				} else if (line.startsWith(".W")) {
+////					currentSection = "query";	
+////				} else if (currentQuery != null && currentSection != null) {
+////					line = line.replace("?", "\\?");
+////					switch (currentSection) {
+////					case "query":						
+////						currentQuery.query += line.trim() + " ";
+////						break;
+////					}
+////				}
+////			}
+////
+////			// Add Last Query to queries list
+////			queries.add(currentQuery);
+////			currentQuery.print();
+////
+////		} catch (FileNotFoundException e) {
+////			// TODO Auto-generated catch block
+////			e.printStackTrace();
+////		} catch (IOException e) {
+////			System.err.println("An error occurred while reading the file: " + e.getMessage());
+////			e.printStackTrace();
+////		}
+////		// END OF BUILD QUERIES LIST
+////
+////
+////		
+////		
+////	
+////		
+////		
+////		
+////		// START OF QUERIES
+////		
+////
+////		// Open the folder that contains our search index
+////		Directory directory = FSDirectory.open(Paths.get(INDEX_DIRECTORY));
+////
+////		// create objects to read and search across the index
+////		DirectoryReader ireader = DirectoryReader.open(directory);
+////		IndexSearcher isearcher = new IndexSearcher(ireader);
+////		
+////		
+////		// SET SCORING METHOD		
+////		if(score == 1) {
+////			isearcher.setSimilarity(new BooleanSimilarity());
+////		}
+////		else if(score == 2) {
+////			isearcher.setSimilarity(new ClassicSimilarity());
+////		}
+////		else if (score == 3) {
+////			isearcher.setSimilarity(new BM25Similarity());
+////		}
+////		
+////		// Create the query parser. The default search field is "content", but
+////		// we can use this to search across any field
+////				
+////		// go through queries list and check
+////		BufferedWriter writer = new BufferedWriter(new FileWriter(results));;
+////	
+////		
+////		for(int q = 0; q < queries.size(); q++) {
+////			System.out.println("Query " + queries.get(q).ID);
+////
+////			Query cur_query = null;
+////			Query finalQuery = null;
+////			BooleanQuery booleanQuery = null;
+////			try {
+////				System.out.println(queries.get(q).query.trim());
+////				
+////				
+////				TokenStream stream;// = analyzer.tokenStream(null,"string");
+////				
+////				String query_string = queries.get(q).query.trim();
+////				stream = analyzer.tokenStream(null, query_string);
+////				
+////				CharTermAttribute attr = stream.addAttribute(CharTermAttribute.class);
+////				stream.reset();
+////				
+////				//StringBuffer cur = new StringBuffer();
+////				String cur = "";
+////				BooleanQuery.Builder bool_query = new BooleanQuery.Builder();
+////				
+////				int N = ireader.numDocs();
+////				
+////				while(stream.incrementToken()) {
+////					
+////					
+////					// MESSING HERE
+////					
+//////					Term t = new Term("content", attr.toString());
+//////					if(ireader.totalTermFreq(t) < 50) {
+//////						//bool_query.add(new BoostQuery(new TermQuery(t), 2.0f), BooleanClause.Occur.SHOULD);
+//////					}
+////					cur += (attr.toString()+" ");
+////				}
+////				stream.close();
+////
+////				//cur_query = content_parser.parse(cur); // parse instead of content_parser
+////				cur = cur.replaceAll("(\\b\\w+\\b)(?=.*\\b\\1\\b)", ""); // Remove duplicate words
+////				
+////				
+////				System.out.println(cur);
+////
+////				/////////////////
+////				//2
+////				/////////////////
+////				QueryParser titleParser = new QueryParser("title", analyzer);
+////				QueryParser contentParser = new QueryParser("content", analyzer);
+////
+////				Query titleQuery = titleParser.parse(cur);
+////				Query contentQuery = contentParser.parse(cur);
+////
+////				BooleanQuery.Builder boolQuery = new BooleanQuery.Builder();
+////
+////				boolQuery.add(
+////				    new BoostQuery(titleQuery, 1.5f),
+////				    BooleanClause.Occur.SHOULD
+////				);
+////
+////				boolQuery.add(
+////				    contentQuery,
+////				    BooleanClause.Occur.SHOULD
+////				);
+////				System.out.println("FFFFFFFFFFFFFFFFFFFFFFFFFF");
+////				System.out.println("FFFFFFFFFFFFFFFFFFFFFFFFFF");
+////				System.out.println("FFFFFFFFFFFFFFFFFFFFFFFFFF");
+////				System.out.println("FFFFFFFFFFFFFFFFFFFFFFFFFF");
+////				System.out.println("FFFFFFFFFFFFFFFFFFFFFFFFFF");
+////				System.out.println("FFFFFFFFFFFFFFFFFFFFFFFFFF");
+////				System.out.println("FFFFFFFFFFFFFFFFFFFFFFFFFF");
+////				System.out.println("FFFFFFFFFFFFFFFFFFFFFFFFFF");
+////				finalQuery = boolQuery.build();
+////				
+////				/* 4045
+////				QueryParser title_query1 = new QueryParser("title", analyzer);
+////				QueryParser content_query1 = new QueryParser("content", analyzer);
+////				
+////				Query titlequery = title_query1.parse(cur);//queries.get(q).query.toString());
+////				Query contentquery = content_query1.parse(cur);//queries.get(q).query.toString());
+////				
+////				
+////				BooleanQuery.setMaxClauseCount(128*4096);
+////				
+////				
+////				
+////				bool_query.add(
+////					    new BoostQuery(titlequery, 1.5f),
+////					    BooleanClause.Occur.SHOULD
+////					);
+////
+////					bool_query.add(
+////					    contentquery,
+////					    BooleanClause.Occur.SHOULD
+////					);
+////				
+////				
+//////				bool_query.add(new BoostQuery(new TermQuery(new Term(cur)), 1.5f), BooleanClause.Occur.SHOULD);
+//////				bool_query.add(titlequery, BooleanClause.Occur.SHOULD);
+//////				bool_query.add(contentquery, BooleanClause.Occur.MUST);
+//////				
+////				finalQuery = bool_query.build();
+////				*/
+////				
+////				//System.out.println(bool_query.toString());
+////			}
+////			catch(Exception e) {
+////				e.printStackTrace();
+////			}
+////			// Get the set of results
+////			ScoreDoc[] hits = isearcher.search(finalQuery, MAX_RESULTS).scoreDocs;
+////			
+////			// Print the results
+////			System.out.println("Documents: " + hits.length);
+////			for (int i = 0; i < hits.length; i++)
+////			{
+////				Document hitDoc = isearcher.doc(hits[i].doc);
+////				System.out.println(i + ") " /* + hitDoc.get("counter_for_id")*/ + " " + hitDoc.get("ID") + " " + hitDoc.get("title")+" " + hits[i].score);
+////
+////
+////
+////				// WANT 6 COLUMNS FOR trec_eval
+////				// <query_id> Q0 <doc_id> <rank> <score> <run_id>
+////
+////				String query_id = String.valueOf(q + 1);
+////				String doc_id = hitDoc.get("ID");
+////				String rank = String.valueOf(i);
+////				String score = String.valueOf(hits[i].score);
+////				String run_id = "run1";
+////
+////				String res = query_id + " " + "Q0" + " " + doc_id + " " + rank + " " + score + " " + run_id + "\n";
+////
+////				writer.write(res);
+////			}
+////		}
+////
+////		// close everything and quit
+////		writer.close();
+////		ireader.close();
+////		directory.close(); 	
+////	}
+////	
+////	
+////	
+////	// this code just formats cranqrel file
+////	public static void reformat() {
+////		String inputFile = "../cranqrel";
+////		String outputFile = "../cranqrel.txt";
+////
+////		try (BufferedReader br = new BufferedReader(new FileReader(inputFile));
+////				BufferedWriter bw = new BufferedWriter(new FileWriter(outputFile))) {
+////
+////			String line;
+////			while ((line = br.readLine()) != null) {
+////				String[] parts = line.split(" ");
+////
+////				if (parts.length == 3) {
+////					// Inserting 0 at the second position
+////					String modifiedLine = parts[0] + " 0 " + parts[1] + " " + parts[2];
+////					bw.write(modifiedLine);
+////					bw.newLine();
+////				} else {
+////					System.out.println("Invalid line format: " + line);
+////				}
+////			}
+////
+////			System.out.println("Processing complete. Check output.txt.");
+////		} catch (IOException e) {
+////			e.printStackTrace();
+////		}
+////	}
+////}
+//
+//
+//
+//
+//package ie.tcd.dalyc24;
+//
+//import java.io.BufferedReader;
+//import java.io.BufferedWriter;
+//import java.io.FileReader;
+//import java.io.FileWriter;
+//import java.io.IOException;
+//import java.io.FileNotFoundException;
+//
+//import java.util.ArrayList;
+//import java.util.HashSet;
+//import java.util.Scanner;
+//import java.util.Set;
+//import java.nio.file.Paths;
+//import org.apache.lucene.analysis.Analyzer;
+//import org.apache.lucene.analysis.TokenStream;
+//import org.apache.lucene.analysis.standard.StandardAnalyzer;
+//import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+//import org.apache.lucene.document.Document;
+//import org.apache.lucene.document.Field;
+//import org.apache.lucene.document.TextField;
+//import org.apache.lucene.index.DirectoryReader;
+//import org.apache.lucene.index.IndexWriter;
+//import org.apache.lucene.index.IndexWriterConfig;
+//import org.apache.lucene.index.Term;
+//import org.apache.lucene.search.BooleanClause;
+//import org.apache.lucene.search.BooleanQuery;
+//import org.apache.lucene.search.BoostQuery;
+//import org.apache.lucene.search.IndexSearcher;
+//import org.apache.lucene.search.PhraseQuery;
+//import org.apache.lucene.search.Query;
+//import org.apache.lucene.search.ScoreDoc;
+//import org.apache.lucene.search.TermQuery;
+//import org.apache.lucene.search.similarities.BM25Similarity;
+//import org.apache.lucene.search.similarities.BooleanSimilarity;
+//import org.apache.lucene.search.similarities.ClassicSimilarity;
+//import org.apache.lucene.store.Directory;
+//import org.apache.lucene.store.FSDirectory;
+//
+//import org.apache.lucene.queryparser.classic.ParseException;
+//
+//
+//public class IR_ASSIGNMENT
+//{
+//
+//	static Analyzer analyzer = null;
+//
+//	// Directory where the search index will be saved
+//	private static String INDEX_DIRECTORY = "../index";
+//
+//	private static int score;
+//
+//	// Tunable weights for query construction
+//	private static final float TITLE_BOOST         = 1.5f;  // extra weight for a term matching the title
+//	private static final float PHRASE_BOOST        = 2.0f;  // adjacent-word phrase in content
+//	private static final float TITLE_PHRASE_BOOST  = 3.0f;  // adjacent-word phrase in title
+//	private static final int   PHRASE_SLOP         = 1;     // words allowed between phrase terms
+//	private static final float MIN_IDF             = 0.0f;  // terms with idf below this are dropped (try 0.5f)
+//
+//	public static void main(String[] args) throws IOException, ParseException
+//	{
+//		System.out.println("Starting");
+//
+//		//reformat();
+//
+//		System.out.println("What analyzer to use");
+//		System.out.println("1 - Custom Analyzer");
+//		System.out.println("2 - Standard Analyzer");
+//
+//		Scanner in = new Scanner(System.in);
+//		int type = in.nextInt();
+//
+//		if(type == 1) {
+//			analyzer = new MyCustomAnalyzer();
+//		} else {
+//			analyzer = new StandardAnalyzer();
+//		}
+//
+//		System.out.println("What score to use");
+//		System.out.println("1 - Boolean");
+//		System.out.println("2 - TF-IDF");
+//		System.out.println("3 - BM25");
+//		score = in.nextInt();
+//
+//
+//		buildIndex();
+//		queryDocs();
+//		System.out.println("Finishing");
+//	}
+//
+//	// Adds one parsed Cranfield document to the list.
+//	// Raw text is passed in: the IndexWriter runs the analyzer once, so indexed terms
+//	// are processed exactly the same way as the query terms.
+//	private static void addDoc(ArrayList<Document> documents, Document_File d, int counter) {
+//		Document doc = new Document();
+//		doc.add(new TextField("counter_for_id", String.valueOf(counter), Field.Store.YES));
+//		doc.add(new TextField("ID", d.ID, Field.Store.YES));
+//		doc.add(new TextField("title", d.title, Field.Store.YES));
+//		doc.add(new TextField("author", d.author, Field.Store.YES));
+//		doc.add(new TextField("source", d.source, Field.Store.YES));
+//		doc.add(new TextField("content", d.content, Field.Store.YES));
+//		documents.add(doc);
+//	}
+//
+//	public static void buildIndex() throws IOException {
+//		// ArrayList of documents in the corpus
+//		ArrayList<Document> documents = new ArrayList<Document>();
+//
+//		// Open the directory that contains the search index
+//		Directory directory = FSDirectory.open(Paths.get(INDEX_DIRECTORY));
+//
+//		// Set up an index writer to add process and save documents to the index
+//		IndexWriterConfig config = new IndexWriterConfig(analyzer);
+//		config.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
+//		IndexWriter iwriter = new IndexWriter(directory, config);
+//
+//		String filePath = "../cran/cran.all.1400";
+//		try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
+//			String line  = null;
+//			String currentSection = null;
+//			Document_File currentDocument = null;
+//
+//			int counter_for_id = 0;
+//			while ((line = reader.readLine()) != null) {
+//
+//				if (line.startsWith(".I")) {
+//					counter_for_id++;
+//					if (currentDocument != null) {
+//						// Save the previous document before starting a new one
+//						addDoc(documents, currentDocument, counter_for_id - 1);
+//					}
+//					currentDocument = new Document_File();
+//					currentDocument.ID = line.substring(3);
+//				} else if (line.startsWith(".T")) {
+//					currentSection = "title";
+//				} else if (line.startsWith(".A")) {
+//					currentSection = "author";
+//				} else if (line.startsWith(".B")) {
+//					currentSection = "source";
+//				} else if (line.startsWith(".W")) {
+//					currentSection = "content";
+//				} else if (currentDocument != null && currentSection != null) {
+//
+//					switch (currentSection) {
+//					case "title":
+//						currentDocument.title += line.trim() + " ";
+//						break;
+//					case "author":
+//						currentDocument.author += line.trim() + " ";
+//						break;
+//					case "source":
+//						currentDocument.source += line.trim() + " ";
+//						break;
+//					case "content":
+//						currentDocument.content += line.trim() + " ";
+//						break;
+//					}
+//				}
+//			}
+//
+//			// Save last document (there is no following ".I" line to trigger it)
+//			if (currentDocument != null) {
+//				addDoc(documents, currentDocument, counter_for_id);
+//			}
+//
+//		} catch (IOException e) {
+//			System.err.println("An error occurred while reading the file: " + e.getMessage());
+//			e.printStackTrace();
+//		}
+//
+//		// close everything and quit
+//		iwriter.addDocuments(documents);
+//		System.out.println("Indexed " + iwriter.numRamDocs() + " documents");
+//		iwriter.close();
+//		directory.close();
+//	}
+//
+//
+//
+//	// Limit the number of search results we get
+//	private static int MAX_RESULTS = 50; // I changed this from 10
+//	private static String results = "../results.txt";
+//
+//	// Builds a weighted query from the raw query text:
+//	//  - every distinct analyzed term is searched in content and title, boosted by its IDF
+//	//    so rare (more meaningful) terms count for more than common ones
+//	//  - every pair of adjacent terms is added as a phrase query so documents containing
+//	//    the words together score higher
+//	private static Query buildWeightedQuery(String queryText, DirectoryReader ireader) throws IOException {
+//
+//		// 1. Analyze the query, keeping token order for phrases
+//		ArrayList<String> tokens = new ArrayList<String>();
+//		try (TokenStream stream = analyzer.tokenStream(null, queryText)) {
+//			CharTermAttribute attr = stream.addAttribute(CharTermAttribute.class);
+//			stream.reset();
+//			while (stream.incrementToken()) {
+//				tokens.add(attr.toString());
+//			}
+//			stream.end();
+//		}
+//
+//		int N = ireader.numDocs();
+//		BooleanQuery.Builder bool_query = new BooleanQuery.Builder();
+//		Set<String> seen = new HashSet<String>();
+//
+//		// 2. Weighted single terms
+//		for (String t : tokens) {
+//			if (!seen.add(t)) continue; // skip duplicate terms
+//
+//			int dfContent = ireader.docFreq(new Term("content", t));
+//			int dfTitle   = ireader.docFreq(new Term("title", t));
+//			if (dfContent == 0 && dfTitle == 0) continue; // term not in the index at all
+//
+//			// BM25-style IDF: large for rare terms, small for common ones
+//			int df = Math.max(dfContent, dfTitle);
+//			float idf = (float) Math.log(1 + (N - df + 0.5) / (df + 0.5));
+//			if (idf < MIN_IDF) continue;
+//
+//			if (dfContent > 0) {
+//				bool_query.add(
+//						new BoostQuery(new TermQuery(new Term("content", t)), idf),
+//						BooleanClause.Occur.SHOULD);
+//			}
+//			if (dfTitle > 0) {
+//				bool_query.add(
+//						new BoostQuery(new TermQuery(new Term("title", t)), idf * TITLE_BOOST),
+//						BooleanClause.Occur.SHOULD);
+//			}
+//		}
+//
+//		// 3. Adjacent-word phrases (bigrams)
+//		for (int i = 0; i < tokens.size() - 1; i++) {
+//			String a = tokens.get(i);
+//			String b = tokens.get(i + 1);
+//			if (a.equals(b)) continue;
+//
+//			bool_query.add(
+//					new BoostQuery(new PhraseQuery(PHRASE_SLOP, "content", a, b), PHRASE_BOOST),
+//					BooleanClause.Occur.SHOULD);
+//			bool_query.add(
+//					new BoostQuery(new PhraseQuery(PHRASE_SLOP, "title", a, b), TITLE_PHRASE_BOOST),
+//					BooleanClause.Occur.SHOULD);
+//		}
+//
+//		return bool_query.build();
+//	}
+//
+//	public static void queryDocs() throws IOException, ParseException{
+//
+//		String filePath = "../cran/cran.qry";
+//
+//		String line  = null;
+//		String currentSection = null;
+//		Query_File currentQuery = null;
+//
+//
+//		ArrayList<Query_File> queries = new ArrayList<Query_File>();
+//
+//		try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
+//
+//			while ((line = reader.readLine()) != null)
+//			{
+//				if (line.startsWith(".I")) {
+//					if (currentQuery == null) {
+//						currentQuery = new Query_File();
+//						currentQuery.ID = line.substring(3);
+//					} else {
+//						// Add current query to queries list
+//						queries.add(currentQuery);
+//						currentQuery = new Query_File();
+//						currentQuery.ID = line.substring(3);
+//					}
+//				} else if (line.startsWith(".W")) {
+//					currentSection = "query";
+//				} else if (currentQuery != null && currentSection != null) {
+//					switch (currentSection) {
+//					case "query":
+//						currentQuery.query += line.trim() + " ";
+//						break;
+//					}
+//				}
+//			}
+//
+//			// Add Last Query to queries list
+//			if (currentQuery != null) {
+//				queries.add(currentQuery);
+//			}
+//
+//		} catch (FileNotFoundException e) {
+//			e.printStackTrace();
+//		} catch (IOException e) {
+//			System.err.println("An error occurred while reading the file: " + e.getMessage());
+//			e.printStackTrace();
+//		}
+//		// END OF BUILD QUERIES LIST
+//
+//
+//		// START OF QUERIES
+//
+//		// Open the folder that contains our search index
+//		Directory directory = FSDirectory.open(Paths.get(INDEX_DIRECTORY));
+//
+//		// create objects to read and search across the index
+//		DirectoryReader ireader = DirectoryReader.open(directory);
+//		IndexSearcher isearcher = new IndexSearcher(ireader);
+//
+//
+//		// SET SCORING METHOD
+//		if(score == 1) {
+//			isearcher.setSimilarity(new BooleanSimilarity());
+//		}
+//		else if(score == 2) {
+//			isearcher.setSimilarity(new ClassicSimilarity());
+//		}
+//		else if (score == 3) {
+//			isearcher.setSimilarity(new BM25Similarity());
+//		}
+//
+//		BufferedWriter writer = new BufferedWriter(new FileWriter(results));
+//
+//		// go through queries list and check
+//		for(int q = 0; q < queries.size(); q++) {
+//			System.out.println("Query " + queries.get(q).ID);
+//
+//			Query finalQuery = null;
+//			try {
+//				String query_string = queries.get(q).query.trim();
+//				System.out.println(query_string);
+//
+//				finalQuery = buildWeightedQuery(query_string, ireader);
+//				System.out.println(finalQuery);
+//			}
+//			catch(Exception e) {
+//				e.printStackTrace();
+//			}
+//
+//			// If the query could not be built, skip it instead of crashing
+//			if (finalQuery == null) {
+//				continue;
+//			}
+//
+//			// Get the set of results
+//			ScoreDoc[] hits = isearcher.search(finalQuery, MAX_RESULTS).scoreDocs;
+//
+//			// Print the results
+//			System.out.println("Documents: " + hits.length);
+//			for (int i = 0; i < hits.length; i++)
+//			{
+//				Document hitDoc = isearcher.doc(hits[i].doc);
+//				System.out.println(i + ") " + hitDoc.get("ID") + " " + hitDoc.get("title") + " " + hits[i].score);
+//
+//				// 6 columns for trec_eval
+//				// <query_id> Q0 <doc_id> <rank> <score> <run_id>
+//				String query_id = String.valueOf(q + 1);
+//				String doc_id = hitDoc.get("ID");
+//				String rank = String.valueOf(i + 1);
+//				String scoreStr = String.valueOf(hits[i].score);
+//				String run_id = "run1";
+//
+//				String res = query_id + " " + "Q0" + " " + doc_id + " " + rank + " " + scoreStr + " " + run_id + "\n";
+//
+//				writer.write(res);
+//			}
+//		}
+//
+//		// close everything and quit
+//		writer.close();
+//		ireader.close();
+//		directory.close();
+//	}
+//
+//
+//
+//	// this code just formats cranqrel file
+//	public static void reformat() {
+//		String inputFile = "../cranqrel";
+//		String outputFile = "../cranqrel.txt";
+//
+//		try (BufferedReader br = new BufferedReader(new FileReader(inputFile));
+//				BufferedWriter bw = new BufferedWriter(new FileWriter(outputFile))) {
+//
+//			String line;
+//			while ((line = br.readLine()) != null) {
+//				String[] parts = line.split(" ");
+//
+//				if (parts.length == 3) {
+//					// Inserting 0 at the second position
+//					String modifiedLine = parts[0] + " 0 " + parts[1] + " " + parts[2];
+//					bw.write(modifiedLine);
+//					bw.newLine();
+//				} else {
+//					System.out.println("Invalid line format: " + line);
+//				}
+//			}
+//
+//			System.out.println("Processing complete. Check output.txt.");
+//		} catch (IOException e) {
+//			e.printStackTrace();
+//		}
+//	}
+//}
+
+package ie.tcd.dalyc24;
+
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.FileNotFoundException;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Scanner;
+import java.nio.file.Paths;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.similarities.BM25Similarity;
+import org.apache.lucene.search.similarities.BooleanSimilarity;
+import org.apache.lucene.search.similarities.ClassicSimilarity;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
+
+import org.apache.lucene.queryparser.classic.ParseException;
+
+
+public class IR_ASSIGNMENT
+{
+
+	static Analyzer analyzer = null;
+
+	// Directory where the search index will be saved
+	private static String INDEX_DIRECTORY = "../index";
+
+	private static int score;
+
+	// Tunable weights for query construction
+	private static final float TITLE_BOOST         = 1.5f;  // extra weight for a term matching the title
+	private static final float PHRASE_BOOST        = 2.0f;  // adjacent-word phrase in content
+	private static final float TITLE_PHRASE_BOOST  = 3.0f;  // adjacent-word phrase in title
+	private static final int   PHRASE_SLOP         = 1;     // words allowed between phrase terms
+	private static final float MIN_IDF             = 0.0f;  // terms with idf below this are dropped (try 0.5f)
+	private static final float REPEAT_BOOST        = 0.5f;  // extra weight per repeat of a term in the query (0 = off)
+
+	public static void main(String[] args) throws IOException, ParseException
+	{
+		System.out.println("Starting");
+
+		//reformat();
+
+		System.out.println("What analyzer to use");
+		System.out.println("1 - Custom Analyzer");
+		System.out.println("2 - Standard Analyzer");
+
+		Scanner in = new Scanner(System.in);
+		int type = in.nextInt();
+
+		if(type == 1) {
+			analyzer = new MyCustomAnalyzer();
+		} else {
+			analyzer = new StandardAnalyzer();
+		}
+
+		System.out.println("What score to use");
+		System.out.println("1 - Boolean");
+		System.out.println("2 - TF-IDF");
+		System.out.println("3 - BM25");
+		score = in.nextInt();
+
+
+		buildIndex();
+		queryDocs();
+		System.out.println("Finishing");
+	}
+
+	// Adds one parsed Cranfield document to the list.
+	// Raw text is passed in: the IndexWriter runs the analyzer once, so indexed terms
+	// are processed exactly the same way as the query terms.
+	private static void addDoc(ArrayList<Document> documents, Document_File d, int counter) {
+		Document doc = new Document();
+		doc.add(new TextField("counter_for_id", String.valueOf(counter), Field.Store.YES));
+		doc.add(new TextField("ID", d.ID, Field.Store.YES));
+		doc.add(new TextField("title", d.title, Field.Store.YES));
+		doc.add(new TextField("author", d.author, Field.Store.YES));
+		doc.add(new TextField("source", d.source, Field.Store.YES));
+		doc.add(new TextField("content", d.content, Field.Store.YES));
+		documents.add(doc);
+	}
+
+	public static void buildIndex() throws IOException {
+		// ArrayList of documents in the corpus
+		ArrayList<Document> documents = new ArrayList<Document>();
+
+		// Open the directory that contains the search index
+		Directory directory = FSDirectory.open(Paths.get(INDEX_DIRECTORY));
+
+		// Set up an index writer to add process and save documents to the index
+		IndexWriterConfig config = new IndexWriterConfig(analyzer);
+		config.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
+		IndexWriter iwriter = new IndexWriter(directory, config);
+
+		String filePath = "../cran/cran.all.1400";
+		try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
+			String line  = null;
+			String currentSection = null;
+			Document_File currentDocument = null;
+
+			int counter_for_id = 0;
+			while ((line = reader.readLine()) != null) {
+
+				if (line.startsWith(".I")) {
+					counter_for_id++;
+					if (currentDocument != null) {
+						// Save the previous document before starting a new one
+						addDoc(documents, currentDocument, counter_for_id - 1);
+					}
+					currentDocument = new Document_File();
+					currentDocument.ID = line.substring(3);
+				} else if (line.startsWith(".T")) {
+					currentSection = "title";
+				} else if (line.startsWith(".A")) {
+					currentSection = "author";
+				} else if (line.startsWith(".B")) {
+					currentSection = "source";
+				} else if (line.startsWith(".W")) {
+					currentSection = "content";
+				} else if (currentDocument != null && currentSection != null) {
+
+					switch (currentSection) {
+					case "title":
+						currentDocument.title += line.trim() + " ";
+						break;
+					case "author":
+						currentDocument.author += line.trim() + " ";
+						break;
+					case "source":
+						currentDocument.source += line.trim() + " ";
+						break;
+					case "content":
+						currentDocument.content += line.trim() + " ";
+						break;
+					}
+				}
+			}
+
+			// Save last document (there is no following ".I" line to trigger it)
+			if (currentDocument != null) {
+				addDoc(documents, currentDocument, counter_for_id);
+			}
+
+		} catch (IOException e) {
+			System.err.println("An error occurred while reading the file: " + e.getMessage());
+			e.printStackTrace();
+		}
+
+		// close everything and quit
+		iwriter.addDocuments(documents);
+		System.out.println("Indexed " + iwriter.numRamDocs() + " documents");
+		iwriter.close();
+		directory.close();
+	}
+
+
+
+	// Limit the number of search results we get
+	private static int MAX_RESULTS = 50; // I changed this from 10
+	private static String results = "../results.txt";
+
+	// Builds a weighted query from the raw query text:
+	//  - every distinct analyzed term is searched in content and title, boosted by its IDF
+	//    so rare (more meaningful) terms count for more than common ones
+	//  - every pair of adjacent terms is added as a phrase query so documents containing
+	//    the words together score higher
+	private static Query buildWeightedQuery(String queryText, DirectoryReader ireader) throws IOException {
+
+		// 1. Analyze the query, keeping token order for phrases
+		ArrayList<String> tokens = new ArrayList<String>();
+		try (TokenStream stream = analyzer.tokenStream(null, queryText)) {
+			CharTermAttribute attr = stream.addAttribute(CharTermAttribute.class);
+			stream.reset();
+			while (stream.incrementToken()) {
+				tokens.add(attr.toString());
+			}
+			stream.end();
+		}
+
+		int N = ireader.numDocs();
+		BooleanQuery.Builder bool_query = new BooleanQuery.Builder();
+
+		// Count how many times each term occurs in the query (insertion order kept)
+		LinkedHashMap<String, Integer> termCounts = new LinkedHashMap<String, Integer>();
+		for (String t : tokens) {
+			termCounts.merge(t, 1, Integer::sum);
+		}
+
+		// 2. Weighted single terms (one clause per distinct term)
+		for (java.util.Map.Entry<String, Integer> entry : termCounts.entrySet()) {
+			String t = entry.getKey();
+			int count = entry.getValue();
+
+			// 1.0 for a term used once, +REPEAT_BOOST for each extra repeat
+			float repeatWeight = 1.0f + REPEAT_BOOST * (count - 1);
+
+			int dfContent = ireader.docFreq(new Term("content", t));
+			int dfTitle   = ireader.docFreq(new Term("title", t));
+			if (dfContent == 0 && dfTitle == 0) continue; // term not in the index at all
+
+			// BM25-style IDF: large for rare terms, small for common ones
+			int df = Math.max(dfContent, dfTitle);
+			float idf = (float) Math.log(1 + (N - df + 0.5) / (df + 0.5));
+			if (idf < MIN_IDF) continue;
+
+			// Final term weight = IDF x repeat weight
+			idf *= repeatWeight;
+
+			if (dfContent > 0) {
+				bool_query.add(
+						new BoostQuery(new TermQuery(new Term("content", t)), idf),
+						BooleanClause.Occur.SHOULD);
+			}
+			if (dfTitle > 0) {
+				bool_query.add(
+						new BoostQuery(new TermQuery(new Term("title", t)), idf * TITLE_BOOST),
+						BooleanClause.Occur.SHOULD);
+			}
+		}
+
+		// 3. Adjacent-word phrases (bigrams)
+		for (int i = 0; i < tokens.size() - 1; i++) {
+			String a = tokens.get(i);
+			String b = tokens.get(i + 1);
+			if (a.equals(b)) continue;
+
+			bool_query.add(
+					new BoostQuery(new PhraseQuery(PHRASE_SLOP, "content", a, b), PHRASE_BOOST),
+					BooleanClause.Occur.SHOULD);
+			bool_query.add(
+					new BoostQuery(new PhraseQuery(PHRASE_SLOP, "title", a, b), TITLE_PHRASE_BOOST),
+					BooleanClause.Occur.SHOULD);
+		}
+
+		return bool_query.build();
+	}
+
+	public static void queryDocs() throws IOException, ParseException{
+
+		String filePath = "../cran/cran.qry";
+
+		String line  = null;
+		String currentSection = null;
+		Query_File currentQuery = null;
+
+
+		ArrayList<Query_File> queries = new ArrayList<Query_File>();
+
+		try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
+
+			while ((line = reader.readLine()) != null)
+			{
+				if (line.startsWith(".I")) {
+					if (currentQuery == null) {
+						currentQuery = new Query_File();
+						currentQuery.ID = line.substring(3);
+					} else {
+						// Add current query to queries list
+						queries.add(currentQuery);
+						currentQuery = new Query_File();
+						currentQuery.ID = line.substring(3);
+					}
+				} else if (line.startsWith(".W")) {
+					currentSection = "query";
+				} else if (currentQuery != null && currentSection != null) {
+					switch (currentSection) {
+					case "query":
+						currentQuery.query += line.trim() + " ";
+						break;
+					}
+				}
+			}
+
+			// Add Last Query to queries list
+			if (currentQuery != null) {
+				queries.add(currentQuery);
+			}
+
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			System.err.println("An error occurred while reading the file: " + e.getMessage());
+			e.printStackTrace();
+		}
+		// END OF BUILD QUERIES LIST
+
+
+		// START OF QUERIES
+
+		// Open the folder that contains our search index
+		Directory directory = FSDirectory.open(Paths.get(INDEX_DIRECTORY));
+
+		// create objects to read and search across the index
+		DirectoryReader ireader = DirectoryReader.open(directory);
+		IndexSearcher isearcher = new IndexSearcher(ireader);
+
+
+		// SET SCORING METHOD
+		if(score == 1) {
+			isearcher.setSimilarity(new BooleanSimilarity());
+		}
+		else if(score == 2) {
+			isearcher.setSimilarity(new ClassicSimilarity());
+		}
+		else if (score == 3) {
+			isearcher.setSimilarity(new BM25Similarity(2.0f, 0.75f));
+		}
+
+		BufferedWriter writer = new BufferedWriter(new FileWriter(results));
+
+		// go through queries list and check
+		for(int q = 0; q < queries.size(); q++) {
+			System.out.println("Query " + queries.get(q).ID);
+
+			Query finalQuery = null;
+			try {
+				String query_string = queries.get(q).query.trim();
+				System.out.println(query_string);
+
+				finalQuery = buildWeightedQuery(query_string, ireader);
+				System.out.println(finalQuery);
+			}
+			catch(Exception e) {
+				e.printStackTrace();
+			}
+
+			// If the query could not be built, skip it instead of crashing
+			if (finalQuery == null) {
+				continue;
+			}
+
+			// Get the set of results
+			ScoreDoc[] hits = isearcher.search(finalQuery, MAX_RESULTS).scoreDocs;
+
+			// Print the results
+			System.out.println("Documents: " + hits.length);
+			for (int i = 0; i < hits.length; i++)
+			{
+				Document hitDoc = isearcher.doc(hits[i].doc);
+				System.out.println(i + ") " + hitDoc.get("ID") + " " + hitDoc.get("title") + " " + hits[i].score);
+
+				// 6 columns for trec_eval
+				// <query_id> Q0 <doc_id> <rank> <score> <run_id>
+				String query_id = String.valueOf(q + 1);
+				String doc_id = hitDoc.get("ID");
+				String rank = String.valueOf(i + 1);
+				String scoreStr = String.valueOf(hits[i].score);
+				String run_id = "run1";
+
+				String res = query_id + " " + "Q0" + " " + doc_id + " " + rank + " " + scoreStr + " " + run_id + "\n";
+
+				writer.write(res);
+			}
+		}
+
+		// close everything and quit
+		writer.close();
+		ireader.close();
+		directory.close();
+	}
+
+
+
+	// this code just formats cranqrel file
+	public static void reformat() {
+		String inputFile = "../cranqrel";
+		String outputFile = "../cranqrel.txt";
+
+		try (BufferedReader br = new BufferedReader(new FileReader(inputFile));
+				BufferedWriter bw = new BufferedWriter(new FileWriter(outputFile))) {
+
+			String line;
+			while ((line = br.readLine()) != null) {
+				String[] parts = line.split(" ");
+
+				if (parts.length == 3) {
+					// Inserting 0 at the second position
+					String modifiedLine = parts[0] + " 0 " + parts[1] + " " + parts[2];
+					bw.write(modifiedLine);
+					bw.newLine();
+				} else {
+					System.out.println("Invalid line format: " + line);
+				}
+			}
+
+			System.out.println("Processing complete. Check output.txt.");
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+}
+
+
+
+
+
+//package ie.tcd.dalyc24;
+//
+//import java.io.BufferedReader;
+//import java.io.BufferedWriter;
+//import java.io.File;
+//import java.io.FileReader;
+//import java.io.FileWriter;
+//import java.io.IOException;
+//
+//import java.util.ArrayList;
+//import java.util.Collections;
+//import java.util.HashMap;
+//import java.util.HashSet;
+//import java.util.LinkedHashMap;
+//import java.util.List;
+//import java.util.Map;
+//import java.util.Scanner;
+//import java.util.Set;
+//import java.nio.file.Paths;
+//import org.apache.lucene.analysis.Analyzer;
+//import org.apache.lucene.analysis.TokenStream;
+//import org.apache.lucene.analysis.standard.StandardAnalyzer;
+//import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+//import org.apache.lucene.document.Document;
+//import org.apache.lucene.document.Field;
+//import org.apache.lucene.document.TextField;
+//import org.apache.lucene.index.DirectoryReader;
+//import org.apache.lucene.index.IndexWriter;
+//import org.apache.lucene.index.IndexWriterConfig;
+//import org.apache.lucene.index.Term;
+//import org.apache.lucene.search.BooleanClause;
+//import org.apache.lucene.search.BooleanQuery;
+//import org.apache.lucene.search.BoostQuery;
+//import org.apache.lucene.search.IndexSearcher;
+//import org.apache.lucene.search.PhraseQuery;
+//import org.apache.lucene.search.Query;
+//import org.apache.lucene.search.ScoreDoc;
+//import org.apache.lucene.search.TermQuery;
+//import org.apache.lucene.search.similarities.BM25Similarity;
+//import org.apache.lucene.search.similarities.BooleanSimilarity;
+//import org.apache.lucene.search.similarities.ClassicSimilarity;
+//import org.apache.lucene.search.similarities.Similarity;
+//import org.apache.lucene.store.Directory;
+//import org.apache.lucene.store.FSDirectory;
+//
+//
+///**
+// * Usage:
+// *   (no args)  interactive: choose analyzer + similarity, runs the full-feature query
+// *   all        runs every experiment row, writes ../runs/<name>.txt for each, prints a summary table
+// *   grid       grid-searches BM25 k1 / b for the full-feature query with the custom analyzer
+// */
+//public class IR_ASSIGNMENT
+//{
+//	static Analyzer analyzer = null;
+//
+//	private static final String INDEX_DIRECTORY = "../index";
+//	private static final String CORPUS_FILE     = "../cran/cran.all.1400";
+//	private static final String QUERY_FILE      = "../cran/cran.qry";
+//	private static final String RUNS_DIR        = "../runs";
+//
+//	private static int MAX_RESULTS = 100;
+//
+//	// Query-building constants
+//	private static final float TITLE_PHRASE_BOOST = 3.0f;
+//	private static final float PHRASE_BOOST       = 2.0f;
+//	private static final int   PHRASE_SLOP        = 1;
+//	private static final float MIN_IDF            = 0.0f;   // try 0.5f to drop very common terms
+//
+//	// Pseudo-relevance feedback constants
+//	private static final int   PRF_DOCS   = 5;     // top documents assumed relevant
+//	private static final int   PRF_TERMS  = 10;    // expansion terms added
+//	private static final float PRF_WEIGHT = 0.4f;  // expansion term weight relative to original terms
+//
+//	// ------------------------------------------------------------------
+//	// Experiment configuration
+//	// ------------------------------------------------------------------
+//	static class Config {
+//		String name;
+//		int analyzerType;      // 1 = custom, 2 = standard
+//		int sim;               // 1 = boolean, 2 = tf-idf, 3 = bm25
+//		boolean idf = false;   // weight terms by IDF
+//		float titleBoost = 0f; // >0 adds a title clause with this boost
+//		boolean phrases = false;
+//		float repeatBoost = 0f; // extra weight per repeat of a term in the query
+//		float k1 = 1.2f, b = 0.75f;
+//		boolean prf = false;
+//
+//		Config(String name, int analyzerType, int sim) {
+//			this.name = name; this.analyzerType = analyzerType; this.sim = sim;
+//		}
+//
+//		Config copy(String newName) {
+//			Config c = new Config(newName, analyzerType, sim);
+//			c.idf = idf; c.titleBoost = titleBoost; c.phrases = phrases;
+//			c.repeatBoost = repeatBoost; c.k1 = k1; c.b = b; c.prf = prf;
+//			return c;
+//		}
+//	}
+//
+//	// Cumulative rows: each one adds a single feature to the previous one
+//	static List<Config> buildExperiments() {
+//		List<Config> list = new ArrayList<Config>();
+//
+//		list.add(new Config("01_std_boolean_plain", 2, 1));
+//		list.add(new Config("02_std_tfidf_plain", 2, 2));
+//		list.add(new Config("03_std_bm25_plain", 2, 3));
+//
+//		Config c4 = new Config("04_custom_bm25_plain", 1, 3);
+//		list.add(c4);
+//
+//		Config c5 = c4.copy("05_plus_idf_boost");
+//		c5.idf = true;
+//		list.add(c5);
+//
+//		Config c6 = c5.copy("06_plus_title_boost");
+//		c6.titleBoost = 1.5f;
+//		list.add(c6);
+//
+//		Config c7 = c6.copy("07_plus_phrases");
+//		c7.phrases = true;
+//		list.add(c7);
+//
+//		Config c8 = c7.copy("08_plus_repeat_weighting");
+//		c8.repeatBoost = 0.5f;
+//		list.add(c8);
+//
+//		Config c9 = c8.copy("09_plus_tuned_bm25");
+//		c9.k1 = 1.5f; c9.b = 0.5f;   // replace with the best values found by "grid"
+//		list.add(c9);
+//
+//		Config c10 = c9.copy("10_plus_prf");
+//		c10.prf = true;
+//		list.add(c10);
+//
+//		return list;
+//	}
+//
+//	static Config fullFeatures(String name, int analyzerType, int sim) {
+//		Config c = new Config(name, analyzerType, sim);
+//		c.idf = true; c.titleBoost = 1.5f; c.phrases = true; c.repeatBoost = 0.5f;
+//		return c;
+//	}
+//
+//	// ------------------------------------------------------------------
+//	// main
+//	// ------------------------------------------------------------------
+//	private static int lastIndexedAnalyzer = -1;
+//	private static List<Document_File> corpus;
+//	private static List<Query_File> queryList;
+//	private static Map<Integer, Set<String>> qrels;
+//
+//	public static void main(String[] args) throws IOException
+//	{
+//		System.out.println("Starting");
+//
+//		corpus = loadDocuments();
+//		queryList = loadQueries();
+//		qrels = loadQrels();
+//		new File(RUNS_DIR).mkdirs();
+//
+//		if (args.length > 0 && args[0].equalsIgnoreCase("all")) {
+//			runAll();
+//		} else if (args.length > 0 && args[0].equalsIgnoreCase("grid")) {
+//			runGrid();
+//		} else {
+//			Scanner in = new Scanner(System.in);
+//			System.out.println("What analyzer to use");
+//			System.out.println("1 - Custom Analyzer");
+//			System.out.println("2 - Standard Analyzer");
+//			int type = in.nextInt();
+//
+//			System.out.println("What score to use");
+//			System.out.println("1 - Boolean");
+//			System.out.println("2 - TF-IDF");
+//			System.out.println("3 - BM25");
+//			int sim = in.nextInt();
+//
+//			Config c = fullFeatures("interactive", type, sim);
+//			double[] r = runExperiment(c);
+//			System.out.printf("MAP %.4f  P@10 %.4f%n", r[0], r[1]);
+//		}
+//		System.out.println("Finishing");
+//	}
+//
+//	static void runAll() throws IOException {
+//		List<Config> exps = buildExperiments();
+//		StringBuilder csv = new StringBuilder("run,MAP,P@10\n");
+//		System.out.printf("%n%-32s %8s %8s%n", "Run", "MAP", "P@10");
+//
+//		for (Config c : exps) {
+//			double[] r = runExperiment(c);
+//			System.out.printf("%-32s %8.4f %8.4f%n", c.name, r[0], r[1]);
+//			csv.append(String.format("%s,%.4f,%.4f%n", c.name, r[0], r[1]));
+//		}
+//		writeFile(RUNS_DIR + "/summary.csv", csv.toString());
+//		System.out.println("\nSummary written to " + RUNS_DIR + "/summary.csv");
+//	}
+//
+//	static void runGrid() throws IOException {
+//		float[] k1s = {0.8f, 1.0f, 1.2f, 1.5f, 1.8f, 2.0f};
+//		float[] bs  = {0.3f, 0.5f, 0.6f, 0.75f, 0.9f};
+//		StringBuilder csv = new StringBuilder("k1,b,MAP,P@10\n");
+//		System.out.printf("%n%6s %6s %8s %8s%n", "k1", "b", "MAP", "P@10");
+//
+//		for (float k1 : k1s) {
+//			for (float b : bs) {
+//				Config c = fullFeatures("grid_k1_" + k1 + "_b_" + b, 1, 3);
+//				c.k1 = k1; c.b = b;
+//				double[] r = runExperiment(c);
+//				System.out.printf("%6.2f %6.2f %8.4f %8.4f%n", k1, b, r[0], r[1]);
+//				csv.append(String.format("%.2f,%.2f,%.4f,%.4f%n", k1, b, r[0], r[1]));
+//			}
+//		}
+//		writeFile(RUNS_DIR + "/grid.csv", csv.toString());
+//		System.out.println("\nGrid written to " + RUNS_DIR + "/grid.csv");
+//	}
+//
+//	// ------------------------------------------------------------------
+//	// Running one configuration
+//	// ------------------------------------------------------------------
+//	static double[] runExperiment(Config c) throws IOException {
+//		analyzer = (c.analyzerType == 1) ? new MyCustomAnalyzer() : new StandardAnalyzer();
+//
+//		// The index only depends on the analyzer, so rebuild it only when that changes
+//		if (lastIndexedAnalyzer != c.analyzerType) {
+//			buildIndex(corpus);
+//			lastIndexedAnalyzer = c.analyzerType;
+//		}
+//
+//		Directory directory = FSDirectory.open(Paths.get(INDEX_DIRECTORY));
+//		DirectoryReader ireader = DirectoryReader.open(directory);
+//		IndexSearcher isearcher = new IndexSearcher(ireader);
+//		isearcher.setSimilarity(makeSimilarity(c));
+//
+//		Map<Integer, List<String>> rankings = new HashMap<Integer, List<String>>();
+//		StringBuilder out = new StringBuilder();
+//
+//		for (int q = 0; q < queryList.size(); q++) {
+//			int queryNum = q + 1;
+//			String text = queryList.get(q).query.trim();
+//
+//			Query finalQuery;
+//			try {
+//				Query base = buildQuery(c, text, ireader);
+//				finalQuery = c.prf ? expandWithPrf(base, text, isearcher, ireader) : base;
+//			} catch (Exception e) {
+//				e.printStackTrace();
+//				continue;
+//			}
+//
+//			ScoreDoc[] hits = isearcher.search(finalQuery, MAX_RESULTS).scoreDocs;
+//			List<String> ranked = new ArrayList<String>();
+//
+//			for (int i = 0; i < hits.length; i++) {
+//				String docId = isearcher.doc(hits[i].doc).get("ID").trim();
+//				ranked.add(docId);
+//				// <query_id> Q0 <doc_id> <rank> <score> <run_id>
+//				out.append(queryNum).append(" Q0 ").append(docId).append(" ")
+//				   .append(i + 1).append(" ").append(hits[i].score).append(" ")
+//				   .append(c.name).append("\n");
+//			}
+//			rankings.put(queryNum, ranked);
+//		}
+//
+//		ireader.close();
+//		directory.close();
+//
+//		writeFile(RUNS_DIR + "/" + c.name + ".txt", out.toString());
+//		return evaluate(rankings);
+//	}
+//
+//	static Similarity makeSimilarity(Config c) {
+//		if (c.sim == 1) return new BooleanSimilarity();
+//		if (c.sim == 2) return new ClassicSimilarity();
+//		return new BM25Similarity(c.k1, c.b);
+//	}
+//
+//	// ------------------------------------------------------------------
+//	// Query construction
+//	// ------------------------------------------------------------------
+//	static List<String> analyze(String text) throws IOException {
+//		List<String> tokens = new ArrayList<String>();
+//		try (TokenStream stream = analyzer.tokenStream(null, text)) {
+//			CharTermAttribute attr = stream.addAttribute(CharTermAttribute.class);
+//			stream.reset();
+//			while (stream.incrementToken()) {
+//				tokens.add(attr.toString());
+//			}
+//			stream.end();
+//		}
+//		return tokens;
+//	}
+//
+//	static float idfOf(int N, int df) {
+//		return (float) Math.log(1 + (N - df + 0.5) / (df + 0.5));
+//	}
+//
+//	static Query buildQuery(Config c, String queryText, DirectoryReader ireader) throws IOException {
+//		List<String> tokens = analyze(queryText);
+//		int N = ireader.numDocs();
+//
+//		// Count occurrences of each term (insertion order kept)
+//		LinkedHashMap<String, Integer> termCounts = new LinkedHashMap<String, Integer>();
+//		for (String t : tokens) {
+//			termCounts.merge(t, 1, Integer::sum);
+//		}
+//
+//		BooleanQuery.Builder bq = new BooleanQuery.Builder();
+//
+//		for (Map.Entry<String, Integer> e : termCounts.entrySet()) {
+//			String t = e.getKey();
+//			int count = e.getValue();
+//
+//			int dfContent = ireader.docFreq(new Term("content", t));
+//			int dfTitle   = ireader.docFreq(new Term("title", t));
+//			if (dfContent == 0 && dfTitle == 0) continue;
+//
+//			float weight = 1.0f;
+//			if (c.idf) {
+//				float idf = idfOf(N, Math.max(dfContent, dfTitle));
+//				if (idf < MIN_IDF) continue;
+//				weight = idf;
+//			}
+//			weight *= 1.0f + c.repeatBoost * (count - 1);
+//
+//			if (dfContent > 0) {
+//				bq.add(new BoostQuery(new TermQuery(new Term("content", t)), weight),
+//						BooleanClause.Occur.SHOULD);
+//			}
+//			if (c.titleBoost > 0 && dfTitle > 0) {
+//				bq.add(new BoostQuery(new TermQuery(new Term("title", t)), weight * c.titleBoost),
+//						BooleanClause.Occur.SHOULD);
+//			}
+//		}
+//
+//		if (c.phrases) {
+//			for (int i = 0; i < tokens.size() - 1; i++) {
+//				String a = tokens.get(i), b = tokens.get(i + 1);
+//				if (a.equals(b)) continue;
+//				bq.add(new BoostQuery(new PhraseQuery(PHRASE_SLOP, "content", a, b), PHRASE_BOOST),
+//						BooleanClause.Occur.SHOULD);
+//				if (c.titleBoost > 0) {
+//					bq.add(new BoostQuery(new PhraseQuery(PHRASE_SLOP, "title", a, b), TITLE_PHRASE_BOOST),
+//							BooleanClause.Occur.SHOULD);
+//				}
+//			}
+//		}
+//		return bq.build();
+//	}
+//
+//	// Pseudo-relevance feedback: take the top documents, pick their highest tf*idf terms
+//	// that are not already in the query, and add them with a lower weight.
+//	static Query expandWithPrf(Query base, String queryText, IndexSearcher isearcher,
+//			DirectoryReader ireader) throws IOException {
+//
+//		ScoreDoc[] top = isearcher.search(base, PRF_DOCS).scoreDocs;
+//		if (top.length == 0) return base;
+//
+//		Set<String> queryTerms = new HashSet<String>(analyze(queryText));
+//		Map<String, Float> tf = new HashMap<String, Float>();
+//
+//		for (ScoreDoc sd : top) {
+//			Document d = isearcher.doc(sd.doc);
+//			for (String t : analyze(d.get("content"))) {
+//				if (queryTerms.contains(t)) continue;
+//				tf.merge(t, 1.0f, Float::sum);
+//			}
+//		}
+//
+//		int N = ireader.numDocs();
+//		final Map<String, Float> scored = new HashMap<String, Float>();
+//		final Map<String, Float> idfs = new HashMap<String, Float>();
+//		for (Map.Entry<String, Float> e : tf.entrySet()) {
+//			int df = ireader.docFreq(new Term("content", e.getKey()));
+//			if (df < 2) continue;   // ignore one-off terms
+//			float idf = idfOf(N, df);
+//			idfs.put(e.getKey(), idf);
+//			scored.put(e.getKey(), e.getValue() * idf);
+//		}
+//
+//		List<String> candidates = new ArrayList<String>(scored.keySet());
+//		Collections.sort(candidates, (x, y) -> Float.compare(scored.get(y), scored.get(x)));
+//
+//		BooleanQuery.Builder bq = new BooleanQuery.Builder();
+//		bq.add(base, BooleanClause.Occur.SHOULD);
+//		for (int i = 0; i < Math.min(PRF_TERMS, candidates.size()); i++) {
+//			String t = candidates.get(i);
+//			bq.add(new BoostQuery(new TermQuery(new Term("content", t)), PRF_WEIGHT * idfs.get(t)),
+//					BooleanClause.Occur.SHOULD);
+//		}
+//		return bq.build();
+//	}
+//
+//	// ------------------------------------------------------------------
+//	// Indexing
+//	// ------------------------------------------------------------------
+//	static void addDoc(List<Document> documents, Document_File d, int counter) {
+//		Document doc = new Document();
+//		doc.add(new TextField("counter_for_id", String.valueOf(counter), Field.Store.YES));
+//		doc.add(new TextField("ID", d.ID, Field.Store.YES));
+//		doc.add(new TextField("title", d.title, Field.Store.YES));
+//		doc.add(new TextField("author", d.author, Field.Store.YES));
+//		doc.add(new TextField("source", d.source, Field.Store.YES));
+//		doc.add(new TextField("content", d.content, Field.Store.YES));
+//		documents.add(doc);
+//	}
+//
+//	static void buildIndex(List<Document_File> docs) throws IOException {
+//		List<Document> documents = new ArrayList<Document>();
+//		int counter = 0;
+//		for (Document_File d : docs) {
+//			counter++;
+//			addDoc(documents, d, counter);
+//		}
+//
+//		Directory directory = FSDirectory.open(Paths.get(INDEX_DIRECTORY));
+//		IndexWriterConfig config = new IndexWriterConfig(analyzer);
+//		config.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
+//		IndexWriter iwriter = new IndexWriter(directory, config);
+//
+//		iwriter.addDocuments(documents);
+//		System.out.println("Indexed " + documents.size() + " documents");
+//		iwriter.close();
+//		directory.close();
+//	}
+//
+//	// ------------------------------------------------------------------
+//	// File loading
+//	// ------------------------------------------------------------------
+//	static List<Document_File> loadDocuments() throws IOException {
+//		List<Document_File> docs = new ArrayList<Document_File>();
+//		try (BufferedReader reader = new BufferedReader(new FileReader(CORPUS_FILE))) {
+//			String line;
+//			String section = null;
+//			Document_File cur = null;
+//
+//			while ((line = reader.readLine()) != null) {
+//				if (line.startsWith(".I")) {
+//					if (cur != null) docs.add(cur);
+//					cur = new Document_File();
+//					cur.ID = line.substring(3);
+//				} else if (line.startsWith(".T")) {
+//					section = "title";
+//				} else if (line.startsWith(".A")) {
+//					section = "author";
+//				} else if (line.startsWith(".B")) {
+//					section = "source";
+//				} else if (line.startsWith(".W")) {
+//					section = "content";
+//				} else if (cur != null && section != null) {
+//					switch (section) {
+//					case "title":   cur.title   += line.trim() + " "; break;
+//					case "author":  cur.author  += line.trim() + " "; break;
+//					case "source":  cur.source  += line.trim() + " "; break;
+//					case "content": cur.content += line.trim() + " "; break;
+//					}
+//				}
+//			}
+//			if (cur != null) docs.add(cur);
+//		}
+//		return docs;
+//	}
+//
+//	static List<Query_File> loadQueries() throws IOException {
+//		List<Query_File> queries = new ArrayList<Query_File>();
+//		try (BufferedReader reader = new BufferedReader(new FileReader(QUERY_FILE))) {
+//			String line;
+//			boolean inQuery = false;
+//			Query_File cur = null;
+//
+//			while ((line = reader.readLine()) != null) {
+//				if (line.startsWith(".I")) {
+//					if (cur != null) queries.add(cur);
+//					cur = new Query_File();
+//					cur.ID = line.substring(3);
+//					inQuery = false;
+//				} else if (line.startsWith(".W")) {
+//					inQuery = true;
+//				} else if (cur != null && inQuery) {
+//					cur.query += line.trim() + " ";
+//				}
+//			}
+//			if (cur != null) queries.add(cur);
+//		}
+//		return queries;
+//	}
+//
+//	// ------------------------------------------------------------------
+//	// Evaluation (MAP and P@10; use trec_eval for nDCG etc.)
+//	// ------------------------------------------------------------------
+//	static Map<Integer, Set<String>> loadQrels() throws IOException {
+//		Map<Integer, Set<String>> rel = new HashMap<Integer, Set<String>>();
+//		String path = new File("../cranqrel.txt").exists() ? "../cranqrel.txt" : "../cranqrel";
+//		if (!new File(path).exists()) {
+//			System.out.println("No qrels file found; MAP/P@10 will be 0. Use trec_eval on the run files instead.");
+//			return rel;
+//		}
+//		try (BufferedReader br = new BufferedReader(new FileReader(path))) {
+//			String line;
+//			while ((line = br.readLine()) != null) {
+//				String[] p = line.trim().split("\\s+");
+//				String qid, doc, grade;
+//				if (p.length == 4)      { qid = p[0]; doc = p[2]; grade = p[3]; }
+//				else if (p.length == 3) { qid = p[0]; doc = p[1]; grade = p[2]; }
+//				else continue;
+//
+//				// Same rule as trec_eval: grade > 0 is relevant (-1 is not)
+//				if (Integer.parseInt(grade) > 0) {
+//					rel.computeIfAbsent(Integer.parseInt(qid), k -> new HashSet<String>()).add(doc);
+//				}
+//			}
+//		}
+//		return rel;
+//	}
+//
+//	static double[] evaluate(Map<Integer, List<String>> rankings) {
+//		double sumAP = 0, sumP10 = 0;
+//		int counted = 0;
+//
+//		for (Map.Entry<Integer, Set<String>> e : qrels.entrySet()) {
+//			Set<String> relevant = e.getValue();
+//			List<String> ranked = rankings.get(e.getKey());
+//			if (ranked == null) ranked = new ArrayList<String>();
+//
+//			int hits = 0;
+//			double ap = 0;
+//			for (int i = 0; i < ranked.size(); i++) {
+//				if (relevant.contains(ranked.get(i))) {
+//					hits++;
+//					ap += (double) hits / (i + 1);
+//				}
+//			}
+//			int inTop10 = 0;
+//			for (int i = 0; i < Math.min(10, ranked.size()); i++) {
+//				if (relevant.contains(ranked.get(i))) inTop10++;
+//			}
+//
+//			sumAP += ap / relevant.size();
+//			sumP10 += inTop10 / 10.0;
+//			counted++;
+//		}
+//		if (counted == 0) return new double[] {0, 0};
+//		return new double[] {sumAP / counted, sumP10 / counted};
+//	}
+//
+//	static void writeFile(String path, String content) throws IOException {
+//		try (BufferedWriter w = new BufferedWriter(new FileWriter(path))) {
+//			w.write(content);
+//		}
+//	}
+//
+//	// this code just formats cranqrel file
+//	public static void reformat() {
+//		String inputFile = "../cranqrel";
+//		String outputFile = "../cranqrel.txt";
+//
+//		try (BufferedReader br = new BufferedReader(new FileReader(inputFile));
+//				BufferedWriter bw = new BufferedWriter(new FileWriter(outputFile))) {
+//
+//			String line;
+//			while ((line = br.readLine()) != null) {
+//				String[] parts = line.split(" ");
+//
+//				if (parts.length == 3) {
+//					bw.write(parts[0] + " 0 " + parts[1] + " " + parts[2]);
+//					bw.newLine();
+//				} else {
+//					System.out.println("Invalid line format: " + line);
+//				}
+//			}
+//			System.out.println("Processing complete.");
+//		} catch (IOException e) {
+//			e.printStackTrace();
+//		}
+//	}
+//}

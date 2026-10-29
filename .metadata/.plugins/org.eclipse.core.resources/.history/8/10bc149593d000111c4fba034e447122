@@ -1,0 +1,442 @@
+package ie.tcd.dalyc24;
+
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.FileNotFoundException;
+
+import java.util.ArrayList;
+import java.util.Scanner;
+import java.nio.file.Paths;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.similarities.BM25Similarity;
+import org.apache.lucene.search.similarities.BooleanSimilarity;
+import org.apache.lucene.search.similarities.ClassicSimilarity;
+import org.apache.lucene.search.similarities.DFISimilarity;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
+
+import org.apache.lucene.queryparser.classic.QueryParser;
+import org.apache.lucene.queryparser.classic.ParseException;
+
+
+public class IR_ASSIGNMENT3
+{
+
+	static Analyzer analyzer = null;
+	
+	// Directory where the search index will be saved
+	private static String INDEX_DIRECTORY = "../index";
+	
+	private static int score; 
+
+	public static void main(String[] args) throws IOException, ParseException
+	{
+		System.out.println("Starting");
+
+		//reformat();
+		
+		System.out.println("What analyzer to use");
+		System.out.println("1 - Custom Analyzer");
+		System.out.println("2 - Standard Analyzer");
+		
+		Scanner in = new Scanner(System.in);
+		int type = in.nextInt();
+		
+		if(type == 1) {
+			analyzer = new MyCustomAnalyzer();
+		} else {
+			analyzer = new StandardAnalyzer();
+		}
+		
+		System.out.println("What score to use");
+		System.out.println("1 - Boolean");
+		System.out.println("2 - TF-IDF");
+		System.out.println("3 - BM25");
+		score = in.nextInt();
+		
+		
+		buildIndex();
+		queryDocs();
+		System.out.println("Finishing");
+	}
+
+	public static void buildIndex() throws IOException {	
+		// ArrayList of documents in the corpus
+		ArrayList<Document> documents = new ArrayList<Document>();
+
+		// Open the directory that contains the search index
+		Directory directory = FSDirectory.open(Paths.get(INDEX_DIRECTORY));
+
+		// Set up an index writer to add process and save documents to the index
+		IndexWriterConfig config = new IndexWriterConfig(analyzer);
+		config.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
+		IndexWriter iwriter = new IndexWriter(directory, config);
+
+		String filePath = "../cran/cran.all.1400";
+		try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
+			String line  = null;
+			String currentSection = null;
+			Document_File currentDocument = null;            
+
+			int counter_for_id = 0;
+			while ((line = reader.readLine()) != null) {
+				//System.out.println(line);
+
+				if (line.startsWith(".I")) {
+					counter_for_id++;
+					if (currentDocument == null) {
+						currentDocument = new Document_File();
+						currentDocument.ID = line.substring(3);
+					} else {
+						currentDocument.print();
+
+						
+						//System.out.println("NEW CODE");
+						TokenStream stream_title = analyzer.tokenStream(null, currentDocument.title);
+						CharTermAttribute attr = stream_title.addAttribute(CharTermAttribute.class);
+						stream_title.reset();
+						
+						//StringBuffer cur = new StringBuffer();
+						String title_words = "";
+						while(stream_title.incrementToken()) {
+							title_words += (attr.toString()+" ");
+						}
+						stream_title.close();
+						
+						TokenStream stream_content = analyzer.tokenStream(null, currentDocument.content);
+						attr = stream_content.addAttribute(CharTermAttribute.class);
+						stream_content.reset();
+						
+						
+						String content_words = "";
+						while(stream_content.incrementToken()) {
+							content_words += (attr.toString()+" ");
+						}
+						stream_content.close();
+						
+						//System.out.println(cur);
+						//System.exit(0);
+						// Save processed document
+						Document doc = new Document();
+						doc.add(new TextField("counter_for_id", String.valueOf(counter_for_id), Field.Store.YES));
+						doc.add(new TextField("ID", currentDocument.ID, Field.Store.YES));
+						doc.add(new TextField("title", title_words, Field.Store.YES));
+						doc.add(new TextField("author",currentDocument.author, Field.Store.YES));
+						doc.add(new TextField("source",currentDocument.source, Field.Store.YES));
+						doc.add(new TextField("content",content_words, Field.Store.YES));
+						documents.add(doc);
+						
+						// Create a new Document
+						currentDocument = new Document_File();
+						currentDocument.ID = line.substring(3);
+					}
+				} else if (line.startsWith(".T")) {
+					currentSection = "title";
+				} else if (line.startsWith(".A")) {
+					currentSection = "author";
+				} else if (line.startsWith(".B")) {
+					currentSection = "source";
+				} else if (line.startsWith(".W")) {
+					currentSection = "content";	
+				} else if (currentDocument != null && currentSection != null) {
+
+					line = line.replace("?", "\\?");
+					switch (currentSection) {
+					case "title":
+						currentDocument.title += line.trim() + " ";
+						break;
+					case "author":
+						currentDocument.author += line.trim() + " ";
+						break;
+					case "source":
+						currentDocument.source += line.trim() + " ";
+						break;
+					case "content":
+						currentDocument.content += line.trim() + " ";
+						break;
+					}
+				}
+			}
+
+			// Save last document, I didnt get a new ".I" to save document maybe do on EOF
+			currentDocument.print();
+			Document doc = new Document();
+			doc.add(new TextField("counter_for_id", String.valueOf(counter_for_id), Field.Store.YES));
+			doc.add(new TextField("ID", currentDocument.ID, Field.Store.YES));
+			doc.add(new TextField("title",currentDocument.title, Field.Store.YES));
+			doc.add(new TextField("author",currentDocument.author, Field.Store.YES));
+			doc.add(new TextField("source",currentDocument.source, Field.Store.YES));
+			doc.add(new TextField("content",currentDocument.content, Field.Store.YES));
+			documents.add(doc);
+
+
+		} catch (IOException e) {
+			System.err.println("An error occurred while reading the file: " + e.getMessage());
+			e.printStackTrace();
+		}
+
+		// close everything and quit
+		iwriter.addDocuments(documents);
+		System.out.println("Indexed " + iwriter.numRamDocs() + " documents");
+		iwriter.close();
+		directory.close(); 
+	}
+
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	// Limit the number of search results we get
+	private static int MAX_RESULTS = 50; // I changed this from 10
+	private static String results = "../results.txt";		
+
+	public static void queryDocs() throws IOException, ParseException{
+
+		String filePath = "../cran/cran.qry";
+
+		String line  = null;
+		String currentSection = null;
+		Query_File currentQuery = null;
+
+
+		ArrayList<Query_File> queries = new ArrayList<Query_File>();
+
+		try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
+
+			while ((line = reader.readLine()) != null)
+			{
+				System.out.println(line);
+
+				if (line.startsWith(".I")) {
+					if (currentQuery == null) {
+						currentQuery = new Query_File();
+						currentQuery.ID = line.substring(3);
+						//documents.add(currentDocument);
+					} else {
+						currentQuery.print();
+						// Add current query to queries list
+						queries.add(currentQuery);
+						currentQuery = new Query_File();
+						currentQuery.ID = line.substring(3);
+					}
+				} else if (line.startsWith(".W")) {
+					currentSection = "query";	
+				} else if (currentQuery != null && currentSection != null) {
+					line = line.replace("?", "\\?");
+					switch (currentSection) {
+					case "query":						
+						currentQuery.query += line.trim() + " ";
+						break;
+					}
+				}
+			}
+
+			// Add Last Query to queries list
+			queries.add(currentQuery);
+			currentQuery.print();
+
+		} catch (FileNotFoundException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (IOException e) {
+			System.err.println("An error occurred while reading the file: " + e.getMessage());
+			e.printStackTrace();
+		}
+		// END OF BUILD QUERIES LIST
+
+
+		
+		
+	
+		
+		
+		
+		// START OF QUERIES
+		
+
+		// Open the folder that contains our search index
+		Directory directory = FSDirectory.open(Paths.get(INDEX_DIRECTORY));
+
+		// create objects to read and search across the index
+		DirectoryReader ireader = DirectoryReader.open(directory);
+		IndexSearcher isearcher = new IndexSearcher(ireader);
+		
+		
+		// SET SCORING METHOD		
+		if(score == 1) {
+			isearcher.setSimilarity(new BooleanSimilarity());
+		}
+		else if(score == 2) {
+			isearcher.setSimilarity(new ClassicSimilarity());
+		}
+		else if (score == 3) {
+			isearcher.setSimilarity(new BM25Similarity());
+		}
+		
+		// Create the query parser. The default search field is "content", but
+		// we can use this to search across any field
+				
+		// go through queries list and check
+		BufferedWriter writer = new BufferedWriter(new FileWriter(results));;
+	
+		
+		for(int q = 0; q < queries.size(); q++) {
+			System.out.println("Query " + queries.get(q).ID);
+
+			Query cur_query = null;
+			Query finalQuery = null;
+			BooleanQuery booleanQuery = null;
+			try {
+				System.out.println(queries.get(q).query.trim());
+				
+				
+				TokenStream stream;// = analyzer.tokenStream(null,"string");
+				
+				String query_string = queries.get(q).query.trim();
+				stream = analyzer.tokenStream(null, query_string);
+				
+				CharTermAttribute attr = stream.addAttribute(CharTermAttribute.class);
+				stream.reset();
+				
+				//StringBuffer cur = new StringBuffer();
+				String cur = "";
+				BooleanQuery.Builder bool_query = new BooleanQuery.Builder();
+				
+				int N = ireader.numDocs();
+				
+				while(stream.incrementToken()) {
+					cur += (attr.toString()+" ");
+				}
+				stream.close();
+
+				//cur_query = content_parser.parse(cur); // parse instead of content_parser
+				cur = cur.replaceAll("(\\b\\w+\\b)(?=.*\\b\\1\\b)", ""); // Remove duplicate words
+				
+				
+				System.out.println(cur);
+
+				/////////////////
+				//2
+				/////////////////
+				QueryParser titleParser = new QueryParser("title", analyzer);
+				QueryParser contentParser = new QueryParser("content", analyzer);
+
+				Query titleQuery = titleParser.parse(cur);
+				Query contentQuery = contentParser.parse(cur);
+
+				BooleanQuery.Builder boolQuery = new BooleanQuery.Builder();
+
+				boolQuery.add(
+				    new BoostQuery(titleQuery, 1.5f),
+				    BooleanClause.Occur.MUST
+				);
+
+				boolQuery.add(
+				    contentQuery,
+				    BooleanClause.Occur.MUST
+				);
+//				System.out.println("FFFFFFFFFFFFFFFFFFFFFFFFFF");
+//				System.out.println("FFFFFFFFFFFFFFFFFFFFFFFFFF");
+//				System.out.println("FFFFFFFFFFFFFFFFFFFFFFFFFF");
+//				System.out.println("FFFFFFFFFFFFFFFFFFFFFFFFFF");
+//				System.out.println("FFFFFFFFFFFFFFFFFFFFFFFFFF");
+//				System.out.println("FFFFFFFFFFFFFFFFFFFFFFFFFF");
+//				System.out.println("FFFFFFFFFFFFFFFFFFFFFFFFFF");
+//				System.out.println("FFFFFFFFFFFFFFFFFFFFFFFFFF");
+				finalQuery = boolQuery.build();
+				
+			}
+			catch(Exception e) {
+				e.printStackTrace();
+			}
+			// Get the set of results
+			ScoreDoc[] hits = isearcher.search(finalQuery, MAX_RESULTS).scoreDocs;
+			
+			// Print the results
+			System.out.println("Documents: " + hits.length);
+			for (int i = 0; i < hits.length; i++)
+			{
+				Document hitDoc = isearcher.doc(hits[i].doc);
+				System.out.println(i + ") " /* + hitDoc.get("counter_for_id")*/ + " " + hitDoc.get("ID") + " " + hitDoc.get("title")+" " + hits[i].score);
+
+
+
+				// WANT 6 COLUMNS FOR trec_eval
+				// <query_id> Q0 <doc_id> <rank> <score> <run_id>
+
+				String query_id = String.valueOf(q + 1);
+				String doc_id = hitDoc.get("ID");
+				String rank = String.valueOf(i);
+				String score = String.valueOf(hits[i].score);
+				String run_id = "run1";
+
+				String res = query_id + " " + "Q0" + " " + doc_id + " " + rank + " " + score + " " + run_id + "\n";
+
+				writer.write(res);
+			}
+		}
+
+		// close everything and quit
+		writer.close();
+		ireader.close();
+		directory.close(); 	
+	}
+	
+	
+	
+	// this code just formats cranqrel file
+	public static void reformat() {
+		String inputFile = "../cranqrel";
+		String outputFile = "../cranqrel.txt";
+
+		try (BufferedReader br = new BufferedReader(new FileReader(inputFile));
+				BufferedWriter bw = new BufferedWriter(new FileWriter(outputFile))) {
+
+			String line;
+			while ((line = br.readLine()) != null) {
+				String[] parts = line.split(" ");
+
+				if (parts.length == 3) {
+					// Inserting 0 at the second position
+					String modifiedLine = parts[0] + " 0 " + parts[1] + " " + parts[2];
+					bw.write(modifiedLine);
+					bw.newLine();
+				} else {
+					System.out.println("Invalid line format: " + line);
+				}
+			}
+
+			System.out.println("Processing complete. Check output.txt.");
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+}
+
+
+

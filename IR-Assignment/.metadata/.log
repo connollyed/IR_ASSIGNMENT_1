@@ -1,0 +1,26 @@
+!SESSION 2026-08-29 18:26:15.579 -----------------------------------------------
+eclipse.buildId=4.40.0.20260604-0652
+java.version=21.0.11
+java.vendor=Eclipse Adoptium
+BootLoader constants: OS=linux, ARCH=x86_64, WS=gtk, NL=en_US
+Framework arguments:  -product org.eclipse.epp.package.java.product
+Command-line arguments:  -os linux -ws gtk -arch x86_64 -product org.eclipse.epp.package.java.product
+
+!ENTRY ch.qos.logback.classic 1 0 2026-08-29 18:26:18.932
+!MESSAGE Activated before the state location was initialized. Retry after the state location is initialized.
+
+!ENTRY ch.qos.logback.classic 1 0 2026-08-29 18:26:47.720
+!MESSAGE Logback config file: /home/connollyed/Desktop/IR_ASSESSMENTS/IR-ASS1/Ass1/IR-Assignment/IR-Assignment/.metadata/.plugins/org.eclipse.m2e.logback/logback.2.7.101.20251017-1242.xml
+!SESSION 2026-08-29 18:33:01.326 -----------------------------------------------
+eclipse.buildId=4.40.0.20260604-0652
+java.version=21.0.11
+java.vendor=Eclipse Adoptium
+BootLoader constants: OS=linux, ARCH=x86_64, WS=gtk, NL=en_US
+Framework arguments:  -product org.eclipse.epp.package.java.product
+Command-line arguments:  -os linux -ws gtk -arch x86_64 -product org.eclipse.epp.package.java.product
+
+!ENTRY ch.qos.logback.classic 1 0 2026-08-29 18:33:04.882
+!MESSAGE Activated before the state location was initialized. Retry after the state location is initialized.
+
+!ENTRY ch.qos.logback.classic 1 0 2026-08-29 18:33:18.365
+!MESSAGE Logback config file: /home/connollyed/Desktop/IR_ASSESSMENTS/IR-ASS1/Ass1/IR-Assignment/IR-Assignment/.metadata/.plugins/org.eclipse.m2e.logback/logback.2.7.101.20251017-1242.xml
