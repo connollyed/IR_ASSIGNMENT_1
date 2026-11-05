@@ -39,7 +39,7 @@ public class MyCustomAnalyzer extends Analyzer {
         // Configure ShingleFilter for n-grams (e.g., bigrams/trigrams)
         //ShingleFilter shingleFilter = new ShingleFilter(result, 2, 2); // bigrams and trigrams
         //shingleFilter.setTokenSeparator(" ");
-        //shingleFilter.setOutputUnigrams(true); // If you want unigrams as well
+        //shingleFilter.setOutputUnigrams(true); // For unigrams as well
         
         //result = shingleFilter;
         
